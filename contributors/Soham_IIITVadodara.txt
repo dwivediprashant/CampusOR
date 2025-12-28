@@ -1,0 +1,5 @@
+Name: Soham Agarwal
+GitHub: SohamSDA
+College: IIIT Vadodara
+About: B.Tech IT student interested in full-stack development, open-source, and system design.
+
