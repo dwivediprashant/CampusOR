@@ -50,76 +50,219 @@ export default function LandingPage() {
   const primaryCta = isAuthenticated ? "/dashboard/user" : "/login";
   const secondaryCta = isAuthenticated ? "/dashboard/user" : "/signup";
   const [isVisible, setIsVisible] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     setIsVisible(true);
   }, []);
 
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsMenuOpen(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMenuOpen]);
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900 scroll-smooth">
-      <nav className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur animate-in fade-in slide-in-from-top duration-700">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-2">
-          <Link href="/landing" className="flex items-center gap-3 group">
-            <img
-              src="/logo/LOGO-removebg-preview.png"
-              alt="CampusOR logo"
-              className="relative z-50 h-20 w-72 scale-110 object-contain drop-shadow-[0_6px_14px_rgba(15,23,42,0.35)] md:h-24 md:w-80 md:scale-125 transition-all duration-300 group-hover:scale-[1.15] md:group-hover:scale-[1.35]"
-            />
-          </Link>
-          <div className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
-            <a
-              href="#solution"
-              className="transition-all duration-300 hover:text-slate-900 hover:scale-105"
+      <nav className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/80 backdrop-blur animate-in fade-in slide-in-from-top duration-700 relative">
+        <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
+          <div className="flex items-center justify-between relative z-30">
+            <Link href="/landing" className="flex items-center gap-3 group">
+              <img
+                src="/logo/LOGO.svg"
+                alt="CampusOR logo"
+                className="h-11 w-auto object-contain drop-shadow-[0_4px_12px_rgba(15,23,42,0.18)] transition-transform duration-300 group-hover:scale-[1.03] md:h-14"
+              />
+            </Link>
+
+            <div className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
+              <a
+                href="#solution"
+                className="transition-all duration-300 hover:text-slate-900 hover:scale-105"
+              >
+                Solution
+              </a>
+              <a
+                href="#how"
+                className="transition-all duration-300 hover:text-slate-900 hover:scale-105"
+              >
+                How It Works
+              </a>
+              <a
+                href="#features"
+                className="transition-all duration-300 hover:text-slate-900 hover:scale-105"
+              >
+                Features
+              </a>
+            </div>
+
+            <div className="hidden items-center gap-3 text-sm font-medium md:flex">
+              {isAuthenticated ? (
+                <>
+                  <button
+                    onClick={logout}
+                    className="text-slate-500 transition-all duration-300 hover:text-slate-900 hover:scale-105"
+                  >
+                    Logout
+                  </button>
+                  <Link
+                    href="/dashboard/user"
+                    className="rounded-full bg-slate-900 px-4 py-2 text-white transition-all duration-300 hover:bg-slate-800 hover:scale-105 hover:shadow-lg"
+                  >
+                    Dashboard
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    className="text-slate-500 transition-all duration-300 hover:text-slate-900 hover:scale-105"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="rounded-full bg-slate-900 px-4 py-2 text-white transition-all duration-300 hover:bg-slate-800 hover:scale-105 hover:shadow-lg"
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-full bg-white/90 p-2.5 text-slate-700 shadow-sm ring-1 ring-slate-200/80 transition-all duration-200 hover:bg-slate-50 active:scale-95 md:hidden"
+              aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={isMenuOpen}
+              aria-controls="mobile-nav"
+              onClick={() => setIsMenuOpen((open) => !open)}
             >
-              Solution
-            </a>
-            <a
-              href="#how"
-              className="transition-all duration-300 hover:text-slate-900 hover:scale-105"
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-5 w-5"
+              >
+                {isMenuOpen ? (
+                  <>
+                    <path strokeLinecap="round" d="M6 6l12 12" />
+                    <path strokeLinecap="round" d="M18 6l-12 12" />
+                  </>
+                ) : (
+                  <>
+                    <path strokeLinecap="round" d="M4 7h16" />
+                    <path strokeLinecap="round" d="M4 12h16" />
+                    <path strokeLinecap="round" d="M4 17h16" />
+                  </>
+                )}
+              </svg>
+            </button>
+
+            <div
+              id="mobile-nav"
+              className={`absolute inset-x-0 top-full mt-3 origin-top md:hidden z-30 transition-all duration-200 ease-out ${
+                isMenuOpen
+                  ? "opacity-100 translate-y-0 scale-100"
+                  : "pointer-events-none opacity-0 -translate-y-2 scale-[0.98]"
+              }`}
             >
-              How It Works
-            </a>
-            <a
-              href="#features"
-              className="transition-all duration-300 hover:text-slate-900 hover:scale-105"
-            >
-              Features
-            </a>
-          </div>
-          <div className="flex items-center gap-3 text-sm font-medium">
-            {isAuthenticated ? (
-              <>
-                <button
-                  onClick={logout}
-                  className="text-slate-500 transition-all duration-300 hover:text-slate-900 hover:scale-105"
-                >
-                  Logout
-                </button>
-                <Link
-                  href="/dashboard/user"
-                  className="rounded-full bg-slate-900 px-4 py-2 text-white transition-all duration-300 hover:bg-slate-800 hover:scale-105 hover:shadow-lg"
-                >
-                  Dashboard
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="text-slate-500 transition-all duration-300 hover:text-slate-900 hover:scale-105"
-                >
-                  Login
-                </Link>
-                <Link
-                  href="/signup"
-                  className="rounded-full bg-slate-900 px-4 py-2 text-white transition-all duration-300 hover:bg-slate-800 hover:scale-105 hover:shadow-lg"
-                >
-                  Get Started
-                </Link>
-              </>
-            )}
+              <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-xl ring-1 ring-slate-900/5 backdrop-blur">
+                <div className="grid gap-1 text-sm font-medium text-slate-700">
+                  {[
+                    { href: "#solution", label: "Solution" },
+                    { href: "#how", label: "How It Works" },
+                    { href: "#features", label: "Features" },
+                  ].map((item) => (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      className="group flex items-center justify-between rounded-xl px-4 py-3 transition-all duration-200 hover:bg-slate-50 active:scale-[0.99]"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <span>{item.label}</span>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        className="h-4 w-4 text-slate-400 transition-colors group-hover:text-slate-600"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </a>
+                  ))}
+                </div>
+
+                <div className="my-3 h-px bg-slate-200/70" />
+
+                <div className="grid gap-2 text-sm font-semibold">
+                  {isAuthenticated ? (
+                    <>
+                      <Link
+                        href="/dashboard/user"
+                        className="rounded-xl bg-slate-900 px-4 py-3 text-center text-white transition-all duration-200 hover:bg-slate-800 active:scale-[0.99]"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Dashboard
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          logout();
+                        }}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-700 transition-all duration-200 hover:bg-slate-50 active:scale-[0.99]"
+                      >
+                        Logout
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href="/signup"
+                        className="rounded-xl bg-slate-900 px-4 py-3 text-center text-white transition-all duration-200 hover:bg-slate-800 active:scale-[0.99]"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Get Started
+                      </Link>
+                      <Link
+                        href="/login"
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-slate-700 transition-all duration-200 hover:bg-slate-50 active:scale-[0.99]"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        Login
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
+        {isMenuOpen && (
+          <div
+            className="fixed inset-0 z-20 bg-slate-900/20 backdrop-blur-sm md:hidden"
+            aria-hidden="true"
+            onClick={() => setIsMenuOpen(false)}
+          />
+        )}
       </nav>
 
       <section className="relative overflow-hidden">
