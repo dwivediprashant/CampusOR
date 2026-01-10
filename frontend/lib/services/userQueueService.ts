@@ -45,6 +45,12 @@ export interface CurrentQueue {
   status: "waiting" | "near" | "serving";
 }
 
+export interface UserState {
+  userId: string;
+  isInQueue: boolean;
+  queueId?: string; // only if isInQueue is true
+}
+
 export interface UserQueueStats {
   totalQueuesJoined: number;
   averageWaitTime: number;
@@ -207,6 +213,27 @@ class UserQueueService {
       return { data: response.data };
     } catch (error) {
       console.error("Error fetching current queue:", error);
+      throw error;
+    }
+  }
+
+  async getUserState(): Promise<{ data: UserState }> {
+    if (USE_MOCK_DATA) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return {
+        data: {
+          userId: "user123",
+          isInQueue: true,
+          queueId: "q5",
+        },
+      };
+    }
+
+    try {
+      const response = await this.api.get("/api/user/state", true);
+      return { data: response.data };
+    } catch (error) {
+      console.error("Error fetching user state:", error);
       throw error;
     }
   }

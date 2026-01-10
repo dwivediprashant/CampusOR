@@ -15,22 +15,32 @@ import {
 import {
   userQueueService,
   CurrentQueue,
+  UserState,
 } from "../../../../../lib/services/userQueueService";
 
 export default function MyQueuePage() {
+  const [userState, setUserState] = useState<UserState | null>(null);
   const [currentQueue, setCurrentQueue] = useState<CurrentQueue | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [leavingQueue, setLeavingQueue] = useState(false);
 
   useEffect(() => {
+    fetchUserState();
     fetchCurrentQueue();
 
-    // Set up polling for real-time updates (every 30 seconds)
     const interval = setInterval(fetchCurrentQueue, 30000);
-
     return () => clearInterval(interval);
   }, []);
+
+  const fetchUserState = async () => {
+    try {
+      const stateData = await userQueueService.getUserState();
+      setUserState(stateData.data);
+    } catch (err) {
+      console.error("Error fetching user state:", err);
+    }
+  };
 
   const fetchCurrentQueue = async () => {
     try {
@@ -161,7 +171,7 @@ export default function MyQueuePage() {
 
       {/* Queue Status */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        {currentQueue ? (
+        {userState?.isInQueue && currentQueue ? (
           <div className="p-6">
             {/* Queue Header */}
             <div className="flex items-start justify-between mb-6">
@@ -282,7 +292,7 @@ export default function MyQueuePage() {
       </div>
 
       {/* Instructions */}
-      {currentQueue && (
+      {userState?.isInQueue && currentQueue && (
         <div className="bg-gray-50 rounded-lg p-6">
           <h3 className="font-medium text-gray-900 mb-3">
             Important Information
