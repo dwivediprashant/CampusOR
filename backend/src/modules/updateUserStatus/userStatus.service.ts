@@ -15,6 +15,16 @@ interface GetUserStatusInput {
   userId: string;
 }
 
+interface GetUserHistoryInput {
+    userId: string;
+  }
+  
+
+  interface UpdateUserHistoryInput {
+    userId: string;
+    queueId: string;
+  }
+
 
 export const checkInQueue = async ({ userId, queueId }: CheckInQueueInput) => {
     if (!Types.ObjectId.isValid(queueId)) {
@@ -102,6 +112,63 @@ export const getUserStatus = async ({ userId }: GetUserStatusInput) => {
     return {
       isInQueue: user.isInQueue ?? false,
       currentQueue: user.currentQueue ?? null,
+    };
+  };
+  
+
+  export const getUserHistory = async ({ userId }: GetUserHistoryInput) => {
+    const user = await User.findById(userId)
+      .populate({
+        path: "pastQueues",
+        select: "name status", // select only what frontend needs
+      })
+      .select("pastQueues");
+  
+    if (!user) {
+      throw { statusCode: 404, message: "User not found" };
+    }
+  
+    return {
+      pastQueues: user.pastQueues || [],
+    };
+  };
+
+  export const updateUserHistory = async ({
+    userId,
+    queueId,
+  }: UpdateUserHistoryInput) => {
+    if (!Types.ObjectId.isValid(queueId)) {
+      throw { statusCode: 400, message: "Invalid queue ID" };
+    }
+  
+    const user = await User.findById(userId);
+  
+    if (!user) {
+      throw { statusCode: 404, message: "User not found" };
+    }
+  
+    user.pastQueues = user.pastQueues || [];
+  
+    const alreadyExists = user.pastQueues.some((q) =>
+      q.equals(queueId)
+    );
+  
+    if (alreadyExists) {
+      return {
+        updated: false,
+        message: "Queue already exists in history",
+      };
+    }
+  
+    user.pastQueues.push(new Types.ObjectId(queueId));
+    await user.save();
+  
+    // 📧 Email hook (DO NOT misuse existing emails)
+    // TODO: sendQueueHistoryUpdatedEmail(user.email, queueId)
+  
+    return {
+      updated: true,
+      message: "Queue added to history",
     };
   };
   
