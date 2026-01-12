@@ -23,13 +23,11 @@ export class OperatorService {
   static async serveNextToken(queueId: string): Promise<OperatorResponse> {
     try {
       // Find the next waiting token with lowest sequence number
-      console.log(queueId);//debug
       const nextToken = await Token.findOne({
         queue: queueId,
         status: TokenStatus.WAITING
       }).sort({ seq: 1 });
 
-      console.log(nextToken);//debug
       if (!nextToken) {
         return {
           success: false,

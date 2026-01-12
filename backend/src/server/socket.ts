@@ -4,6 +4,13 @@ import { TokenService } from "../modules/queue/services/token.service.js";
 import { Queue, Token, TokenStatus } from "../modules/queue/queue.model.js";
 
 interface QueueSnapshot {
+  queue: {
+    id: string;
+    name: string;
+    location: string;
+    status: "ACTIVE" | "PAUSED";
+    nextSequence: number;
+  };
   queueId: string;
   tokens: Array<{
     id: string;
@@ -250,6 +257,13 @@ async function getQueueSnapshot(queueId: string): Promise<QueueSnapshot> {
   };
 
   return {
+    queue: {
+      id: queue._id.toString(),
+      name: queue.name,
+      location: queue.location,
+      status: queue.isActive ? "ACTIVE" : "PAUSED",
+      nextSequence: queue.nextSequence,
+    },
     queueId,
     tokens: tokens.map((t) => ({
       id: t._id.toString(),

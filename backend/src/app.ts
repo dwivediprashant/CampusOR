@@ -31,6 +31,7 @@ app.use("/health", healthRouter);
 app.use("/api/queues", queueRouter);
 // Operator API endpoints
 app.use("/api/operator", operatorRouter);
+app.use("/api/operators", operatorRouter); // alias to match spec
 // Admin API endpoints (protected)
 app.use("/api/admin", adminRouter);
 // Notification API endpoints

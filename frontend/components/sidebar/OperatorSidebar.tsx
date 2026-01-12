@@ -1,12 +1,13 @@
 'use client';
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard,Activity,User,LogOut } from "lucide-react";
 
 export default function OperatorSidebar(){
     const pathname=usePathname();
+    const router = useRouter();
     const linkStyle=(href:string)=>{
-        const isActive=pathname===href;
+        const isActive=pathname===href || pathname.startsWith(`${href}/`);
         return `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
         isActive 
             ? 'bg-blue-600 text-white shadow-md' 
@@ -22,22 +23,24 @@ export default function OperatorSidebar(){
                 </h1>
             </div>
             <nav className="flex-1 px-4 space-y-1">
-                <Link href='/operator/live' className={linkStyle('/operator/live')}>
+                <Link href='/dashboard/operator' className={linkStyle('/dashboard/operator')}>
                     <LayoutDashboard size={20}/>
-                    <span className="font-medium text-sm sm:text-base">Live Queue</span>
+                    <span className="font-medium text-sm sm:text-base">Queues</span>
                 </Link>
-                <Link href='/operator/status' className={linkStyle('/operator/status')}>
+                <Link href='/dashboard/operator/create' className={linkStyle('/dashboard/operator/create')}>
                     <Activity size={20}/>
-                    <span className="font-medium text-sm sm:text-base">Queue Status</span>
-                </Link>
-                <Link href='/operator/profile' className={linkStyle('/operator/profile')}>
-                    <User size={20}/>
-                    <span className="font-medium text-sm sm:text-base">Profile</span>
+                    <span className="font-medium text-sm sm:text-base">Create Queue</span>
                 </Link>
                 
             </nav>
             <div className="p-4 border-t border-gray-100">
-                <button className="flex items-center gap-3 px-3 sm:px-4 py-3 w-full text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors group">
+                <button 
+                    onClick={() => {
+                        localStorage.removeItem("campusor_jwt");
+                        router.push("/login");
+                    }}
+                    className="flex items-center gap-3 px-3 sm:px-4 py-3 w-full text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors group"
+                >
                     <LogOut size={20} className="group-hover:translate-x-1 transition-transform" />
                     <span className="font-medium text-sm sm:text-base">Logout</span>
                 </button>

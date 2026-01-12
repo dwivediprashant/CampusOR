@@ -35,7 +35,14 @@ export default function LoginPage() {
       }
 
       login(data.token);
-      router.push("/landing");
+
+      
+      if (data.user?.role === "operator") {
+        router.push("/dashboard/operator");
+      
+      } else {
+        router.push("/");
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {

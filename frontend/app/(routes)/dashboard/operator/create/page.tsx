@@ -18,7 +18,7 @@ export default function CreateQueuePage() {
       const res = await apiService.post("/queues", formData, true); // true = include auth
       if (res.success) {
         // Redirect to the dashboard with the new queue ID
-        router.push(`/dashboard/operator?queueId=${res.queue.id}`);
+        router.push(`/dashboard/operator/queue/${res.queue.id}`);
       }
     } catch (err: any) {
       setError(err.message || "Failed to create queue");

@@ -1,117 +1,72 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { kioskQueueMock } from "./MockData";
+import { subscribeToQueue } from "@/lib/websocket";
+import { useEffect, useMemo, useState } from "react";
 
-interface Counter {
-  counterId: number;
-  status: "busy" | "serving" | "idle";
-  currentToken: string | null;
-}
-
-interface KioskData {
+type QueueSnapshot = {
+  queue: {
+    id: string;
+    name: string;
+    location: string;
+    status: "ACTIVE" | "PAUSED";
+  };
   queueId: string;
-  queueName: string;
-  location: string;
-  nowServing: {
-    tokenNumber: string;
-    counter: number;
-  };
-  nextTokens: string[];
-  counters: Counter[];
-  lastUpdated: string;
-}
+  tokens: Array<{
+    id: string;
+    seq: number;
+    status: string;
+  }>;
+};
 
-function getInitialMockData(): KioskData {
-  return {
-    ...kioskQueueMock,
-    counters: kioskQueueMock.counters.map((c) => ({
-      counterId: c.counterId,
-      status: c.status as Counter["status"],
-      currentToken: c.currentToken,
-    })),
-  };
-}
+type Props = {
+  queueId: string;
+};
 
-function getUpdatedMockData(currentData: KioskData): KioskData {
-  if (currentData.nextTokens.length === 0) {
-    return getInitialMockData();
-  }
-
-  const updated: KioskData = {
-    ...currentData,
-    nextTokens: [...currentData.nextTokens],
-    counters: currentData.counters.map((c) => ({ ...c })),
-  };
-
-  const nextToken = updated.nextTokens[0];
-  updated.nowServing = {
-    tokenNumber: nextToken,
-    counter: updated.nowServing.counter,
-  };
-
-  updated.nextTokens = updated.nextTokens.slice(1);
-
-  updated.counters = updated.counters.map((counter) => {
-    if (counter.counterId === updated.nowServing.counter) {
-      return {
-        ...counter,
-        status: "serving",
-        currentToken: nextToken,
-      };
-    }
-    if (counter.status === "serving") {
-      return {
-        ...counter,
-        status: "busy",
-      };
-    }
-    return counter;
-  });
-
-  updated.lastUpdated = new Date().toISOString();
-  return updated;
-}
-
-export default function Kiosk() {
-  const [data, setData] = useState<KioskData>(getInitialMockData());
+export default function Kiosk({ queueId }: Props) {
+  const [snapshot, setSnapshot] = useState<QueueSnapshot | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setData((prev) => getUpdatedMockData(prev));
-    }, 5000);
+    const unsubscribe = subscribeToQueue(queueId, {
+      onUpdate: (payload) => {
+        setSnapshot(payload as QueueSnapshot);
+        setError(null);
+      },
+      onError: (err) => setError(err.message || "Socket error"),
+    });
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => unsubscribe();
+  }, [queueId]);
 
-  const cardColors = [
-    "bg-red-100 border-red-400",
-    "bg-green-100 border-green-400",
-    "bg-orange-100 border-orange-400",
-    "bg-pink-100 border-pink-400",
-  ];
+  const waitingTokens = useMemo(() => {
+    if (!snapshot) return [];
+    return snapshot.tokens
+      .filter((t) => t.status === "waiting")
+      .sort((a, b) => a.seq - b.seq);
+  }, [snapshot]);
 
-  const getStatusBadge = (status: Counter["status"]) => {
-    switch (status) {
-      case "serving":
-        return "bg-green-600 text-white";
-      case "busy":
-        return "bg-yellow-600 text-white";
-      default:
-        return "bg-gray-500 text-white";
-    }
-  };
+  const nowServing = useMemo(() => {
+    if (!snapshot) return null;
+    const served = snapshot.tokens
+      .filter((t) => t.status === "served")
+      .sort((a, b) => b.seq - a.seq);
+    return served[0] || null;
+  }, [snapshot]);
 
-  const getStatusText = (status: Counter["status"]) => {
-    switch (status) {
-      case "serving":
-        return "Serving";
-      case "busy":
-        return "Busy";
-      default:
-        return "Available";
-    }
-  };
+  if (!snapshot) {
+    return (
+      <div className="h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mx-auto mb-4" />
+          <p className="text-slate-200">Connecting to queue...</p>
+          {error && <p className="text-red-300 mt-2">{error}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  const nextTokens = waitingTokens.slice(0, 8);
+  const formatToken = (seq: number) => `T-${String(seq).padStart(3, "0")}`;
 
   return (
     <div className="h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
@@ -120,9 +75,9 @@ export default function Kiosk() {
         <div className="h-[15vh] flex items-center justify-center border-b border-slate-700">
           <div className="text-center">
             <h1 className="text-3xl md:text-4xl font-extrabold">
-              {data.queueName}
+              {snapshot.queue.name}
             </h1>
-            <p className="text-slate-300 mt-2">{data.location}</p>
+            <p className="text-slate-300 mt-2">{snapshot.queue.location}</p>
           </div>
         </div>
 
@@ -132,10 +87,10 @@ export default function Kiosk() {
           <div className="flex flex-col items-center justify-center">
             <h2 className="text-xl text-slate-300 mb-4">NOW SERVING</h2>
             <div className="text-7xl md:text-8xl font-black animate-pulse">
-              {data.nowServing.tokenNumber}
+              {nowServing ? formatToken(nowServing.seq) : "--"}
             </div>
             <p className="mt-4 text-slate-400">
-              Counter {data.nowServing.counter}
+              {nowServing ? "Please proceed to the counter" : "Awaiting next token"}
             </p>
           </div>
 
@@ -143,60 +98,36 @@ export default function Kiosk() {
           <div className="flex flex-col items-center">
             <h2 className="text-xl text-slate-300 mb-4">NEXT TOKENS</h2>
             <div className="grid grid-cols-2 gap-4">
-              {data.nextTokens.slice(0, 8).map((token, index) => (
-                <div
-                  key={token}
-                  className={`rounded-xl border-2 p-4 text-slate-800 ${
-                    cardColors[index % cardColors.length]
-                  }`}
-                >
-                  <div className="text-2xl font-bold">{token}</div>
-                  <div className="text-xs mt-1 text-slate-600">
-                    #{index + 1} in queue
+              {nextTokens.length === 0 ? (
+                <div className="col-span-2 text-slate-300">No one in line</div>
+              ) : (
+                nextTokens.map((token, index) => (
+                  <div
+                    key={token.id}
+                    className="rounded-xl border-2 border-slate-600 bg-slate-800 p-4 text-slate-100"
+                  >
+                    <div className="text-2xl font-bold">{formatToken(token.seq)}</div>
+                    <div className="text-xs mt-1 text-slate-400">
+                      #{index + 1} in queue
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
 
-        {/* COUNTER STATUS */}
-        <div className="p-6 border-t border-slate-700">
-          <h2 className="text-xl text-slate-300 mb-6 text-center">
-            COUNTER STATUS
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {data.counters.map((counter, index) => (
-              <div
-                key={counter.counterId}
-                className={`rounded-2xl border-2 p-5 text-slate-800 ${
-                  cardColors[index % cardColors.length]
-                }`}
-              >
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-lg font-bold">
-                    Counter {counter.counterId}
-                  </span>
-                  <span
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold ${getStatusBadge(
-                      counter.status
-                    )}`}
-                  >
-                    {getStatusText(counter.status)}
-                  </span>
-                </div>
-
-                {counter.currentToken ? (
-                  <div className="text-base font-semibold">
-                    Token: {counter.currentToken}
-                  </div>
-                ) : (
-                  <div className="text-sm text-slate-600">Available</div>
-                )}
-              </div>
-            ))}
-          </div>
+        {/* STATUS */}
+        <div className="p-6 border-t border-slate-700 text-center">
+          <span
+            className={`px-4 py-2 rounded-full text-sm font-semibold ${
+              snapshot.queue.status === "ACTIVE"
+                ? "bg-green-200 text-green-900"
+                : "bg-amber-200 text-amber-900"
+            }`}
+          >
+            {snapshot.queue.status === "ACTIVE" ? "Open" : "Paused"}
+          </span>
         </div>
       </div>
     </div>

@@ -1,7 +1,9 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import { Queue, Token, TokenStatus } from "./queue.model.js";
 import { TokenService } from "./services/token.service.js";
 import { AuthRequest } from "../../middlewares/auth.js";
+import { ensureQueueAccess } from "../operator/operator.utils.js";
+import { broadcastQueueUpdate } from "../../server/socket.js";
 
 // 1: Create a new queue
 export async function createQueue(req: AuthRequest, res: Response) {
@@ -57,7 +59,7 @@ export async function createQueue(req: AuthRequest, res: Response) {
 }
 
 // 2: Generate token for a user in a queue
-export async function generateToken(req: Request, res: Response) {
+export async function generateToken(req: AuthRequest, res: Response) {
   const { queueId } = req.params;
 
   // We rely on the service to handle the logic, but we could add
@@ -68,11 +70,12 @@ export async function generateToken(req: Request, res: Response) {
     return res.status(400).json(result);
   }
 
+  await broadcastQueueUpdate(queueId);
   return res.status(201).json(result);
 }
 
 // 3: Update token status
-export async function updateTokenStatus(req: Request, res: Response) {
+export async function updateTokenStatus(req: AuthRequest, res: Response) {
   const { tokenId } = req.params;
   const { status } = req.body;
 
@@ -89,15 +92,21 @@ export async function updateTokenStatus(req: Request, res: Response) {
     return res.status(400).json(result);
   }
 
+  if (result.token?.queueId) {
+    await broadcastQueueUpdate(result.token.queueId);
+  }
   return res.status(200).json(result);
 }
 
 // 4: Get Queue State for Operator Dashboard
-export async function getQueueOperatorView(req: Request, res: Response) {
+export async function getQueueOperatorView(req: AuthRequest, res: Response) {
   try {
     const { queueId } = req.params;
 
-    const queue = await Queue.findById(queueId);
+    const { queue, error } = await ensureQueueAccess(queueId, req.user);
+    if (error) {
+      return res.status(error.status).json({ success: false, error: error.message });
+    }
     if (!queue) {
       return res.status(404).json({ success: false, error: "Queue not found" });
     }
