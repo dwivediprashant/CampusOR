@@ -12,6 +12,7 @@ import {
   LogOut,
   CheckCircle,
   Loader2,
+  Activity,
 } from "lucide-react";
 import { apiService } from "@/app/services/api";
 import { subscribeToQueue } from "@/lib/websocket";
@@ -52,6 +53,17 @@ export default function MyQueuePage() {
     fetchCurrentQueue();
   }, []);
 
+  // Auto-redirect when service is completed
+  useEffect(() => {
+    if (currentQueue?.status === "completed") {
+      const timer = setTimeout(() => {
+        window.location.href = "/dashboard/user";
+      }, 3000); // 3 second delay to show completion message
+
+      return () => clearTimeout(timer);
+    }
+  }, [currentQueue?.status]);
+
   useEffect(() => {
     if (!currentQueue) return;
 
@@ -61,20 +73,27 @@ export default function MyQueuePage() {
         const snapshot = payload as QueueSnapshot;
         setQueueSnapshot(snapshot);
 
-        // Update position based on real-time data
+        // Update position and status based on real-time data
         if (currentQueue) {
           const myTokenSeq = parseInt(
             currentQueue.tokenNumber.replace(/\D/g, "")
           );
-          const waitingAhead = snapshot.tokens.filter(
-            (t) => t.status === "waiting" && t.seq < myTokenSeq
-          ).length;
 
-          setCurrentQueue({
-            ...currentQueue,
-            currentPosition: waitingAhead + 1,
-            estimatedWaitTime: (waitingAhead + 1) * 5,
-          });
+          // Find my token in the snapshot to get current status
+          const myToken = snapshot.tokens.find((t) => t.seq === myTokenSeq);
+
+          if (myToken) {
+            const waitingAhead = snapshot.tokens.filter(
+              (t) => t.status === "waiting" && t.seq < myTokenSeq
+            ).length;
+
+            setCurrentQueue({
+              ...currentQueue,
+              currentPosition: waitingAhead + 1,
+              estimatedWaitTime: (waitingAhead + 1) * 5,
+              status: myToken.status, // Update status from WebSocket
+            });
+          }
         }
       },
       onError: (err) => {
@@ -117,6 +136,8 @@ export default function MyQueuePage() {
 
     try {
       setLeavingQueue(true);
+      setError(null);
+
       const response = await apiService.post(
         "/user-status/leave-queue",
         {},
@@ -124,12 +145,19 @@ export default function MyQueuePage() {
       );
 
       if (response.success) {
+        // Clear local state
         setCurrentQueue(null);
         setQueueSnapshot(null);
+
+        // Refresh to ensure backend state is synced
+        await fetchCurrentQueue();
       }
     } catch (err: any) {
       console.error("Error leaving queue:", err);
-      alert(err.message || "Failed to leave queue. Please try again.");
+      setError(err.message || "Failed to leave queue. Please try again.");
+
+      // Refresh current state even on error to sync with backend
+      await fetchCurrentQueue();
     } finally {
       setLeavingQueue(false);
     }
@@ -357,6 +385,23 @@ export default function MyQueuePage() {
                     <p className="text-sm text-green-800">
                       Your token is now being processed. Please remain at the
                       counter.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {currentQueue.status === "completed" && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-purple-600 mt-0.5" />
+                  <div>
+                    <h3 className="font-medium text-purple-900 mb-1">
+                      Service Completed!
+                    </h3>
+                    <p className="text-sm text-purple-800">
+                      Your service has been completed. Thank you! You'll be
+                      automatically removed from the queue shortly.
                     </p>
                   </div>
                 </div>
