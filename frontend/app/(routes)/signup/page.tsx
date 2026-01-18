@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "../../context/AuthContext";
 import Footer from "../../../components/footer/Footer";
 
 type UserRole = "user" | "operator";
@@ -18,13 +17,14 @@ export default function SignupPage() {
   const [department, setDepartment] = useState("");
   const [position, setPosition] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
   const router = useRouter();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setInfo("");
 
     // Client-side validation for role-specific fields
     if (role === "user" && !collegeEmail) {
@@ -74,6 +74,10 @@ export default function SignupPage() {
         throw new Error(data.message || "Registration failed");
       }
 
+
+      setInfo("OTP sent to your email. Enter the code to finish signup.");
+      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+
       // Auto-login after successful registration
       const loginResponse = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
@@ -96,6 +100,7 @@ export default function SignupPage() {
       } else {
         router.push("/dashboard/user");
       }
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -169,6 +174,11 @@ export default function SignupPage() {
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
               {error}
+            </div>
+          )}
+          {info && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-800 rounded-lg text-sm">
+              {info}
             </div>
           )}
 

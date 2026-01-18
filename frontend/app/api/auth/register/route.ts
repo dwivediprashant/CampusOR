@@ -18,7 +18,10 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { message: data.message || "Registration failed" },
+        {
+          message: data.message || "Registration failed",
+          code: data.code,
+        },
         { status: response.status }
       );
     }

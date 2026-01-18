@@ -7,6 +7,10 @@ import {
   getQueueFinishedEmailHtml,
   getQueueFinishedEmailText,
 } from "./email-template-finished.js";
+import {
+  getEmailVerificationHtml,
+  getEmailVerificationText,
+} from "./email-template-verification.js";
 
 // Initialize Resend with API key from environment
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -142,5 +146,43 @@ export const sendQueueFinishedEmail = async (
   } catch (error) {
     // Email failures must not block database updates
     console.error("Error sending queue finished email:", error);
+  }
+};
+
+/**
+ * Send email verification OTP
+ * Keeps signup/resend flows resilient to email failures
+ */
+export const sendEmailVerificationOtp = async (
+  email: string,
+  userName: string,
+  otp: string,
+  expiresInMinutes: number
+): Promise<void> => {
+  try {
+    const html = getEmailVerificationHtml({
+      userName,
+      otp,
+      expiresInMinutes,
+    });
+
+    const text = getEmailVerificationText({
+      userName,
+      otp,
+      expiresInMinutes,
+    });
+
+    const result = await sendEmail({
+      to: email,
+      subject: "Verify your email - CampusOR",
+      html,
+      text,
+    });
+
+    if (!result.success) {
+      console.error("Failed to send verification email:", result.error);
+    }
+  } catch (error) {
+    console.error("Error sending verification email:", error);
   }
 };

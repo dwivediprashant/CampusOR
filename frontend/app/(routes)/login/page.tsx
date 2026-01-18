@@ -34,6 +34,9 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 403 && data?.requiresVerification) {
+          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+        }
         throw new Error(data.message || "Login failed");
       }
 

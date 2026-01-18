@@ -9,6 +9,10 @@ export type AuthUser = {
   name: string;
   email: string;
   role: UserRole;
+  emailVerified: boolean;
+  collegeEmail?: string;
+  department?: string;
+  position?: string;
 };
 
 type AuthContextType = {
@@ -16,6 +20,7 @@ type AuthContextType = {
   user: AuthUser | null;
   role: UserRole | null;
   isAuthenticated: boolean;
+  isVerified: boolean;
   isLoading: boolean;
   login: (jwt: string, user?: AuthUser | null) => void;
   logout: () => void;
@@ -57,7 +62,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedUser) {
         try {
           const parsed = JSON.parse(storedUser) as AuthUser;
-          setUser(parsed);
+          setUser({
+            ...parsed,
+            emailVerified: parsed.emailVerified ?? true,
+          });
         } catch {
           // ignore bad stored value
         }
@@ -69,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             name: "",
             email: "",
             role: decoded.role,
+            emailVerified: true,
           });
         }
       }
@@ -81,8 +90,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(jwt);
 
     if (authUser) {
-      localStorage.setItem(USER_KEY, JSON.stringify(authUser));
-      setUser(authUser);
+      const normalizedUser: AuthUser = {
+        ...authUser,
+        emailVerified: authUser.emailVerified ?? true,
+      };
+      localStorage.setItem(USER_KEY, JSON.stringify(normalizedUser));
+      setUser(normalizedUser);
     } else {
       const decoded = decodeToken(jwt);
       if (decoded?.role && decoded.id) {
@@ -91,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           name: "",
           email: "",
           role: decoded.role,
+          emailVerified: true,
         };
         localStorage.setItem(USER_KEY, JSON.stringify(fallbackUser));
         setUser(fallbackUser);
@@ -107,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = !!token;
   const role = user?.role ?? null;
+  const isVerified = !!user?.emailVerified;
 
   const hasRole = (roles?: UserRole[]) => {
     if (!roles || roles.length === 0) return true;
@@ -120,6 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       role,
       isAuthenticated,
+      isVerified,
       isLoading,
       login,
       logout,
@@ -128,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isOperator: role === "operator",
       isUser: role === "user",
     }),
-    [token, user, role, isAuthenticated, isLoading, login, logout, hasRole]
+    [token, user, role, isAuthenticated, isVerified, isLoading, login, logout, hasRole]
   );
 
   return <AuthContext.Provider value={computed}>{children}</AuthContext.Provider>;
