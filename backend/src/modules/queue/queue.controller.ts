@@ -61,11 +61,12 @@ export async function createQueue(req: AuthRequest, res: Response) {
 // 2: Generate token for a user in a queue
 export async function generateToken(req: AuthRequest, res: Response) {
   const { queueId } = req.params;
-  console.log(`[Token] Request to generate token for queue: ${queueId}`);
+  const userId = req.user?.sub; // Get userId from auth if available
+  console.log(`[Token] Request to generate token for queue: ${queueId}${userId ? ` for user: ${userId}` : ''}`);
 
   // We rely on the service to handle the logic, but we could add
   // checks here if the queue is active before calling service
-  const result = await TokenService.generateToken(queueId);
+  const result = await TokenService.generateToken(queueId, userId);
   console.log(`[Token] Result:`, result);
 
   if (!result.success) {
@@ -155,7 +156,7 @@ export async function getQueueOperatorView(req: AuthRequest, res: Response) {
 }
 
 // 5: Get all queues for public listing
-export async function getQueuesForUsers(req: Request, res: Response) {
+export async function getQueuesForUsers(req: AuthRequest, res: Response) {
   try {
     const queues = await Queue.find({}).select(
       "name location isActive createdAt"

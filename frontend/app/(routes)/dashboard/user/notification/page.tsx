@@ -10,10 +10,8 @@ import {
   XCircle,
   Clock,
 } from "lucide-react";
-import {
-  userQueueService,
-  UserNotification,
-} from "../../../../../lib/services/userQueueService";
+import { userQueueService, UserNotification } from "@/lib/services/userQueueService";
+
 
 export default function NotificationPage() {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
