@@ -6,6 +6,7 @@ import Link from "next/link";
 import Footer from "../../../components/footer/Footer";
 
 type UserRole = "user" | "operator";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -59,7 +60,7 @@ export default function SignupPage() {
         requestBody.position = position;
       }
 
-      const response = await fetch("/api/auth/register", {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -73,8 +74,33 @@ export default function SignupPage() {
         throw new Error(data.message || "Registration failed");
       }
 
+
       setInfo("OTP sent to your email. Enter the code to finish signup.");
       router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+
+      // Auto-login after successful registration
+      const loginResponse = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const loginData = await loginResponse.json();
+
+      if (!loginResponse.ok) {
+        throw new Error(loginData.message || "Login failed");
+      }
+
+      login(loginData.token, loginData.user);
+
+      if (loginData.user?.role === "operator") {
+        router.push("/dashboard/operator");
+      } else {
+        router.push("/dashboard/user");
+      }
+
     } catch (err: any) {
       setError(err.message);
     } finally {

@@ -33,11 +33,12 @@ export class OperatorService {
         currentlyServed.status = TokenStatus.COMPLETED;
         await currentlyServed.save();
 
-        // Clear the user's queue status
-        await User.updateMany(
-          { currentQueue: queueId, isInQueue: true },
-          { $set: { isInQueue: false }, $unset: { currentQueue: 1 } }
-        );
+        // Clear the user's queue cache (Token table is source of truth)
+        const user = await User.findById(currentlyServed.userId);
+        if (user && user.currentQueue && user.currentQueue.equals(queueId)) {
+          user.currentQueue = undefined;
+          await user.save();
+        }
       }
 
       // Find the next waiting token with lowest sequence number

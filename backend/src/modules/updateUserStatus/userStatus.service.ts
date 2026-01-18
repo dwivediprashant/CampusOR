@@ -28,6 +28,45 @@ interface UpdateUserHistoryInput {
   queueId: string;
 }
 
+// Helper: Check if user has an active token (source of truth)
+const hasActiveToken = async (userId: string): Promise<boolean> => {
+  const activeToken = await Token.findOne({
+    userId: new Types.ObjectId(userId),
+    status: { $in: [TokenStatus.WAITING, TokenStatus.SERVED] },
+  });
+  return !!activeToken;
+};
+
+// Helper: Get active token for user (source of truth)
+const getActiveToken = async (userId: string) => {
+  return await Token.findOne({
+    userId: new Types.ObjectId(userId),
+    status: { $in: [TokenStatus.WAITING, TokenStatus.SERVED] },
+  }).sort({ createdAt: -1 });
+};
+
+// Helper: Sync currentQueue cache based on Token state
+const syncCurrentQueueCache = async (userId: string) => {
+  const user = await User.findById(userId);
+  if (!user) return;
+
+  const activeToken = await getActiveToken(userId);
+  
+  if (activeToken) {
+    // User has active token, update cache
+    if (!user.currentQueue || !user.currentQueue.equals(activeToken.queue)) {
+      user.currentQueue = activeToken.queue;
+      await user.save();
+    }
+  } else {
+    // No active token, clear cache
+    if (user.currentQueue) {
+      user.currentQueue = undefined;
+      await user.save();
+    }
+  }
+};
+
 export const checkInQueue = async ({ userId, queueId }: CheckInQueueInput) => {
   if (!Types.ObjectId.isValid(queueId)) {
     throw { statusCode: 400, message: "Invalid queue ID" };
@@ -43,14 +82,28 @@ export const checkInQueue = async ({ userId, queueId }: CheckInQueueInput) => {
     throw { statusCode: 404, message: "User not found" };
   }
 
-  if (user.isInQueue) {
+  // Check Token table as source of truth
+  const isInQueue = await hasActiveToken(userId);
+  if (isInQueue) {
     throw {
       statusCode: 409,
       message: "You are already in a queue",
     };
   }
 
-  user.isInQueue = true;
+  // Generate token with userId
+  const token = await Token.create({
+    queue: queue._id,
+    userId: new Types.ObjectId(userId),
+    seq: queue.nextSequence,
+    status: TokenStatus.WAITING,
+  });
+
+  // Increment queue sequence
+  queue.nextSequence += 1;
+  await queue.save();
+
+  // Update cache
   user.currentQueue = queue._id;
   await user.save();
 
@@ -64,6 +117,8 @@ export const checkInQueue = async ({ userId, queueId }: CheckInQueueInput) => {
   return {
     message: "Successfully joined the queue",
     currentQueue: queueId,
+    tokenId: token._id.toString(),
+    tokenNumber: `T-${String(token.seq).padStart(3, "0")}`,
   };
 };
 
@@ -76,28 +131,34 @@ export const updateCheckInStatus = async ({
     throw { statusCode: 404, message: "User not found" };
   }
 
-  if (!user.isInQueue || !user.currentQueue) {
+  // Check Token table as source of truth
+  const activeToken = await getActiveToken(userId);
+  if (!activeToken) {
     throw {
       statusCode: 409,
       message: "User is not currently in a queue",
     };
   }
 
-  const completedQueue = user.currentQueue;
+  const completedQueue = activeToken.queue;
+
+  // Update token status to COMPLETED
+  if (activeToken.status === TokenStatus.SERVED) {
+    activeToken.status = TokenStatus.COMPLETED;
+    await activeToken.save();
+  } else if (activeToken.status === TokenStatus.WAITING) {
+    // If still waiting, can't complete - token should be served first
+    throw {
+      statusCode: 409,
+      message: "Cannot complete queue while still waiting. Token must be served first.",
+    };
+  }
 
   // Get queue info before clearing it (for email)
   const queue = await Queue.findById(completedQueue);
 
-  // Prevent duplicate history entries
-  user.pastQueues = user.pastQueues || [];
-  if (!user.pastQueues.some((q) => q.equals(completedQueue))) {
-    user.pastQueues.push(completedQueue);
-  }
-
-  // Clear active queue
+  // Clear cache
   user.currentQueue = undefined;
-  user.isInQueue = false;
-
   await user.save();
 
   // Send queue finished email (non-blocking)
@@ -119,32 +180,101 @@ export const updateCheckInStatus = async ({
 };
 
 export const getUserStatus = async ({ userId }: GetUserStatusInput) => {
-  const user = await User.findById(userId).select("isInQueue currentQueue");
+  const user = await User.findById(userId).select("currentQueue");
 
   if (!user) {
     throw { statusCode: 404, message: "User not found" };
   }
 
+  // Check Token table as source of truth
+  const activeToken = await getActiveToken(userId);
+  const isInQueue = !!activeToken;
+  
+  // Sync cache if needed
+  if (isInQueue && activeToken) {
+    if (!user.currentQueue || !user.currentQueue.equals(activeToken.queue)) {
+      user.currentQueue = activeToken.queue;
+      await user.save();
+    }
+  } else if (!isInQueue && user.currentQueue) {
+    // Clear stale cache
+    user.currentQueue = undefined;
+    await user.save();
+  }
+
   return {
-    isInQueue: user.isInQueue ?? false,
+    isInQueue,
     currentQueue: user.currentQueue ?? null,
   };
 };
 
 export const getUserHistory = async ({ userId }: GetUserHistoryInput) => {
-  const user = await User.findById(userId)
-    .populate({
-      path: "pastQueues",
-      select: "name status", // select only what frontend needs
-    })
-    .select("pastQueues");
+  const user = await User.findById(userId);
 
   if (!user) {
     throw { statusCode: 404, message: "User not found" };
   }
 
+  // Get all tokens for this user (excluding active tokens to show only history)
+  const allTokens = await Token.find({
+    userId: new Types.ObjectId(userId),
+    status: { $in: [TokenStatus.COMPLETED, TokenStatus.CANCELLED, TokenStatus.SKIPPED] },
+  })
+    .sort({ createdAt: -1 }) // Most recent first
+    .lean();
+
+  // Get unique queue IDs to fetch queue details
+  const queueIds = [...new Set(allTokens.map((token) => token.queue.toString()))];
+
+  // Fetch all queues (no joins - separate queries)
+  const queues = await Queue.find({
+    _id: { $in: queueIds.map((id) => new Types.ObjectId(id)) },
+  }).lean();
+
+  // Create a map for quick queue lookup
+  const queueMap = new Map(queues.map((q) => [q._id.toString(), q]));
+
+  // Build history array with all required information
+  const history = allTokens.map((token) => {
+    const queue = queueMap.get(token.queue.toString());
+    const joinedAt = token.createdAt;
+    const updatedAt = token.updatedAt;
+
+    // Calculate wait time (time from joined to when status changed)
+    // For COMPLETED/SERVED, this is approximate (createdAt to updatedAt)
+    // Note: updatedAt reflects last status change, which may not be when it was served
+    const waitTimeMs = updatedAt.getTime() - joinedAt.getTime();
+    const waitTimeMinutes = Math.round(waitTimeMs / (1000 * 60));
+
+    // Determine when served/cancelled based on status and updatedAt
+    let servedAt: Date | null = null;
+    let cancelledAt: Date | null = null;
+
+    if (token.status === TokenStatus.COMPLETED || token.status === TokenStatus.SERVED) {
+      // updatedAt reflects when status changed to this state
+      servedAt = updatedAt;
+    } else if (
+      token.status === TokenStatus.CANCELLED ||
+      token.status === TokenStatus.SKIPPED
+    ) {
+      cancelledAt = updatedAt;
+    }
+
+    return {
+      queueId: token.queue.toString(),
+      queueName: queue?.name || "Unknown Queue",
+      location: queue?.location || "Unknown Location",
+      token: `T-${String(token.seq).padStart(3, "0")}`,
+      joinedAt: joinedAt.toISOString(),
+      servedAt: servedAt ? servedAt.toISOString() : null,
+      cancelledAt: cancelledAt ? cancelledAt.toISOString() : null,
+      status: token.status,
+      waitTimeMinutes,
+    };
+  });
+
   return {
-    pastQueues: user.pastQueues || [],
+    pastQueues: history,
   };
 };
 
@@ -162,26 +292,12 @@ export const updateUserHistory = async ({
     throw { statusCode: 404, message: "User not found" };
   }
 
-  user.pastQueues = user.pastQueues || [];
-
-  const alreadyExists = user.pastQueues.some((q) => q.equals(queueId));
-
-  if (alreadyExists) {
-    return {
-      updated: false,
-      message: "Queue already exists in history",
-    };
-  }
-
-  user.pastQueues.push(new Types.ObjectId(queueId));
-  await user.save();
-
-  // 📧 Email hook (DO NOT misuse existing emails)
-  // TODO: sendQueueHistoryUpdatedEmail(user.email, queueId)
-
+  // TODO: pastQueues field removed from User model
+  // History can be retrieved from Token table if needed
+  // For now, just return success without persisting
   return {
-    updated: true,
-    message: "Queue added to history",
+    updated: false,
+    message: "History tracking has been removed. Use Token table for history if needed.",
   };
 };
 // Join queue and generate token
@@ -207,30 +323,19 @@ export const joinQueueWithToken = async ({
     throw { statusCode: 404, message: "User not found" };
   }
 
-  // Check if user has an active token in any queue
-  if (user.isInQueue && user.currentQueue) {
-    // Verify if there's actually an active token
-    const activeToken = await Token.findOne({
-      queue: user.currentQueue,
-      status: TokenStatus.WAITING,
-    }).sort({ createdAt: -1 });
-
-    if (activeToken) {
-      throw {
-        statusCode: 409,
-        message: "You are already in a queue. Please leave it first.",
-      };
-    } else {
-      // No active token found, clear stale user state
-      user.isInQueue = false;
-      user.currentQueue = undefined;
-      await user.save();
-    }
+  // Check Token table as source of truth
+  const activeToken = await getActiveToken(userId);
+  if (activeToken) {
+    throw {
+      statusCode: 409,
+      message: "You are already in a queue. Please leave it first.",
+    };
   }
 
-  // Generate token
+  // Generate token with userId
   const token = await Token.create({
     queue: queue._id,
+    userId: new Types.ObjectId(userId),
     seq: queue.nextSequence,
     status: TokenStatus.WAITING,
   });
@@ -239,8 +344,7 @@ export const joinQueueWithToken = async ({
   queue.nextSequence += 1;
   await queue.save();
 
-  // Update user status
-  user.isInQueue = true;
+  // Update cache
   user.currentQueue = queue._id;
   await user.save();
 
@@ -277,37 +381,34 @@ export const getCurrentQueueDetails = async ({
 }: GetUserStatusInput) => {
   const user = await User.findById(userId)
     .populate("currentQueue")
-    .select("isInQueue currentQueue");
+    .select("currentQueue");
 
   if (!user) {
     throw { statusCode: 404, message: "User not found" };
   }
 
-  if (!user.isInQueue || !user.currentQueue) {
+  // Check Token table as source of truth
+  const activeToken = await getActiveToken(userId);
+  
+  if (!activeToken) {
+    // No active token, clear cache and return null
+    if (user.currentQueue) {
+      user.currentQueue = undefined;
+      await user.save();
+    }
     return null;
   }
 
-  const queue = user.currentQueue as any;
-
-  // Find user's latest token in this queue
-  // Since Token doesn't have userId, we find by queue and most recent creation
-  // This assumes user can only have one active token per queue
-  const token = await Token.findOne({
-    queue: queue._id,
-    status: { $in: [TokenStatus.WAITING, TokenStatus.SERVED] },
-  }).sort({ createdAt: -1 });
-
-  if (!token) {
-    // Token not found or completed, clear user's queue status
-    user.isInQueue = false;
-    user.currentQueue = undefined;
+  // Sync cache if needed
+  if (!user.currentQueue || !user.currentQueue.equals(activeToken.queue)) {
+    user.currentQueue = activeToken.queue;
     await user.save();
-    return null;
   }
 
-  // If token is completed, clear user state and return null
-  if (token.status === TokenStatus.COMPLETED) {
-    user.isInQueue = false;
+  // Get queue details
+  const queue = await Queue.findById(activeToken.queue);
+  if (!queue) {
+    // Queue not found, clear cache
     user.currentQueue = undefined;
     await user.save();
     return null;
@@ -315,21 +416,21 @@ export const getCurrentQueueDetails = async ({
 
   // Count position in queue
   const waitingCount = await Token.countDocuments({
-    queue: queue._id,
+    queue: activeToken.queue,
     status: TokenStatus.WAITING,
-    seq: { $lt: token.seq },
+    seq: { $lt: activeToken.seq },
   });
 
   return {
-    id: token._id.toString(),
-    queueId: queue._id.toString(),
+    id: activeToken._id.toString(),
+    queueId: activeToken.queue.toString(),
     queueName: queue.name,
     location: queue.location,
-    tokenNumber: `T-${String(token.seq).padStart(3, "0")}`,
+    tokenNumber: `T-${String(activeToken.seq).padStart(3, "0")}`,
     currentPosition: waitingCount + 1,
     estimatedWaitTime: (waitingCount + 1) * 5,
-    joinedAt: token.createdAt.toISOString(),
-    status: token.status,
+    joinedAt: activeToken.createdAt.toISOString(),
+    status: activeToken.status,
   };
 };
 
@@ -341,27 +442,29 @@ export const leaveCurrentQueue = async ({ userId }: GetUserStatusInput) => {
     throw { statusCode: 404, message: "User not found" };
   }
 
-  if (!user.isInQueue || !user.currentQueue) {
+  // Check Token table as source of truth
+  const activeToken = await getActiveToken(userId);
+  
+  if (!activeToken) {
     throw { statusCode: 409, message: "You are not in a queue" };
   }
 
-  const queueId = user.currentQueue.toString();
+  const queueId = activeToken.queue.toString();
 
-  // Find and cancel the user's most recent waiting token in this queue
-  // Since Token doesn't have userId, we find by queue and most recent waiting token
-  await Token.findOneAndUpdate(
-    {
-      queue: user.currentQueue,
-      status: TokenStatus.WAITING,
-    },
-    {
-      status: TokenStatus.SKIPPED, // Mark as skipped/cancelled
-    },
-    { sort: { createdAt: -1 } } // Get the most recent waiting token
-  );
+  // Update token status to cancelled/skipped
+  // Only cancel waiting tokens, not served ones
+  if (activeToken.status === TokenStatus.WAITING) {
+    activeToken.status = TokenStatus.CANCELLED;
+    await activeToken.save();
+  } else {
+    // If token is SERVED, can't leave - need to complete it first
+    throw { 
+      statusCode: 409, 
+      message: "Cannot leave queue while being served. Please complete your service first." 
+    };
+  }
 
-  // Clear user status
-  user.isInQueue = false;
+  // Clear cache
   user.currentQueue = undefined;
   await user.save();
 
