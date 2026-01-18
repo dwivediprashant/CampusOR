@@ -1,15 +1,22 @@
 import { Request, Response } from "express";
-import { registerUser, loginUser, createAdminUser } from "./auth.service.js";
+import {
+  registerUser,
+  loginUser,
+  createAdminUser,
+  verifyEmailOtp,
+  resendEmailOtp,
+  AuthError,
+} from "./auth.service.js";
 import { AuthRequest } from "../../middlewares/auth.js";
 
 export const register = async (req: Request, res: Response) => {
   try {
     const { name, email, password, role, collegeEmail, department, position } = req.body;
-    console.log(name, email, password, role); //debugg
     
     // Basic validation
     if (!name || !email || !password) {
       return res.status(400).json({
+        success: false,
         message: "name, email and password are required",
       });
     }
@@ -17,6 +24,7 @@ export const register = async (req: Request, res: Response) => {
     // Reject admin role registration
     if (role === "admin") {
       return res.status(403).json({
+        success: false,
         message: "Admin role registration is not allowed",
       });
     }
@@ -26,6 +34,7 @@ export const register = async (req: Request, res: Response) => {
     const finalRole = role || "user";
     if (!validRoles.includes(finalRole)) {
       return res.status(400).json({
+        success: false,
         message: `Invalid role. Must be one of: ${validRoles.join(", ")}`,
       });
     }
@@ -41,12 +50,16 @@ export const register = async (req: Request, res: Response) => {
     });
 
     return res.status(201).json({
-      message: "User registered successfully !",
-      user,
+      success: true,
+      message: "OTP sent to your email",
+      email: user.email,
     });
   } catch (error: any) {
-    return res.status(400).json({
+    const status = error instanceof AuthError ? error.status : 400;
+    return res.status(status).json({
+      success: false,
       message: error.message || "Registration failed !",
+      code: error instanceof AuthError ? error.code : undefined,
     });
   }
 };
@@ -57,6 +70,7 @@ export const login = async (req: Request, res: Response) => {
 
     if (!email || !password) {
       return res.status(400).json({
+        success: false,
         message: "email and password are required",
       });
     }
@@ -64,12 +78,77 @@ export const login = async (req: Request, res: Response) => {
     const result = await loginUser({ email, password });
 
     return res.status(200).json({
+      success: true,
       message: "Login successful",
       ...result, // { token, user }
     });
   } catch (error: any) {
-    return res.status(400).json({
+    const status = error instanceof AuthError ? error.status : 400;
+    const response: Record<string, any> = {
+      success: false,
       message: error.message || "Login failed",
+      code: error instanceof AuthError ? error.code : undefined,
+    };
+
+    if (error instanceof AuthError && error.code === "EMAIL_NOT_VERIFIED") {
+      response.requiresVerification = true;
+    }
+
+    return res.status(status).json(response);
+  }
+};
+
+export const verifyEmail = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: "email and otp are required",
+      });
+    }
+
+    const result = await verifyEmailOtp({ email, otp });
+
+    return res.status(200).json({
+      success: true,
+      message: "Email verified successfully",
+      ...result, // { token, user }
+    });
+  } catch (error: any) {
+    const status = error instanceof AuthError ? error.status : 400;
+    return res.status(status).json({
+      success: false,
+      message: error.message || "Email verification failed",
+      code: error instanceof AuthError ? error.code : undefined,
+    });
+  }
+};
+
+export const resendOtp = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "email is required",
+      });
+    }
+
+    const result = await resendEmailOtp({ email });
+
+    return res.status(200).json({
+      success: true,
+      ...result,
+    });
+  } catch (error: any) {
+    const status = error instanceof AuthError ? error.status : 400;
+    return res.status(status).json({
+      success: false,
+      message: error.message || "Failed to resend OTP",
+      code: error instanceof AuthError ? error.code : undefined,
     });
   }
 };
