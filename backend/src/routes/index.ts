@@ -18,6 +18,8 @@ router.use("/operators", operatorRouter); // alias stays
 router.use("/admin", adminRouter);
 router.use("/notifications", notificationRouter);
 router.use("/queue-data", fetchQueueDataRouter);
+// Mount to both paths for compatibility
+router.use("/user", verifyJWT, userStatusRouter);
 router.use("/user-status",
   verifyJWT,
   userStatusRouter

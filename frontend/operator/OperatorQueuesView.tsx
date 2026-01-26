@@ -1,5 +1,7 @@
 "use client";
 
+import { CardSkeleton } from "@/components/skeletons/CardSkeleton";
+
 import { apiService } from "@/app/services/api";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -73,9 +75,9 @@ export default function OperatorQueuesView() {
         prev.map((item) =>
           item.id === queue.id
             ? {
-                ...item,
-                status: queue.status === "ACTIVE" ? "PAUSED" : "ACTIVE",
-              }
+              ...item,
+              status: queue.status === "ACTIVE" ? "PAUSED" : "ACTIVE",
+            }
             : item
         )
       );
@@ -118,8 +120,10 @@ export default function OperatorQueuesView() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center items-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sky-600" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {[...Array(4)].map((_, i) => (
+              <CardSkeleton key={i} />
+            ))}
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
@@ -158,11 +162,10 @@ export default function OperatorQueuesView() {
                     </p>
                   </div>
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      queue.status === "ACTIVE"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold ${queue.status === "ACTIVE"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-amber-100 text-amber-700"
+                      }`}
                   >
                     {queue.status === "ACTIVE" ? "Active" : "Paused"}
                   </span>

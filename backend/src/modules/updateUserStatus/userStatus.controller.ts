@@ -266,3 +266,72 @@ export const leaveQueue = async (req: AuthRequest, res: Response) => {
     });
   }
 };
+
+// --- New Endpoints ---
+
+export const getNotifications = async (req: AuthRequest, res: Response) => {
+  // TODO: Implement real notification persistence
+  // For now, return empty list or mock to assume "no notifications" or unblock frontend
+  return res.status(200).json({
+    success: true,
+    data: [],
+  });
+};
+
+export const markNotificationAsRead = async (req: AuthRequest, res: Response) => {
+  // TODO: Implement read logic
+  return res.status(200).json({
+    success: true,
+  });
+};
+
+export const getUserState = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    // Re-use logic from getUserStatus but format for 'UserQueueService.getUserState'
+    const status = await getUserStatusService({ userId });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        userId,
+        isInQueue: status.isInQueue,
+        queueId: status.currentQueue?.toString(),
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const getUserStats = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const result = await getUserHistory({ userId });
+    const pastQueues = result.pastQueues || [];
+
+    // Calculate basic stats on the fly
+    const totalQueuesJoined = pastQueues.length;
+    const totalServed = pastQueues.filter(q => q.status === 'served').length;
+    const totalCancelled = pastQueues.filter(q => q.status === 'cancelled').length;
+    const totalWaitTime = pastQueues.reduce((acc, q) => acc + (q.waitTimeMinutes || 0), 0);
+    const averageWaitTime = totalQueuesJoined > 0 ? Math.round(totalWaitTime / totalQueuesJoined) : 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalQueuesJoined,
+        averageWaitTime,
+        totalServed,
+        totalCancelled,
+        thisMonthQueues: totalQueuesJoined // Simplified for now
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};

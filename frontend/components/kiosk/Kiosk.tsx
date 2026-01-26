@@ -2,6 +2,7 @@
 
 import { subscribeToQueue } from "@/lib/websocket";
 import { useEffect, useMemo, useState } from "react";
+import { Skeleton } from "../skeletons/SkeletonBase";
 
 type QueueSnapshot = {
   queue: {
@@ -73,17 +74,27 @@ export default function Kiosk({ queueId }: Props) {
   // Loading/connecting state
   if (!snapshot) {
     return (
-      <div className="h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mx-auto mb-4" />
-          <p className="text-slate-200">Connecting to queue...</p>
-          {error && (
-            <p className="text-red-300 mt-2 text-sm">
-              {error}
-              <br />
-              <span className="text-slate-400">Retrying...</span>
-            </p>
-          )}
+      <div className="h-screen w-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden flex flex-col">
+        <div className="h-[15vh] flex items-center justify-center border-b border-slate-700 px-6">
+          <div className="text-center space-y-2">
+            <Skeleton className="h-10 w-64 bg-slate-700/50" />
+            <Skeleton className="h-4 w-40 bg-slate-700/50 mx-auto" />
+          </div>
+        </div>
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-8 p-6">
+          <div className="flex flex-col items-center justify-center space-y-6">
+            <Skeleton className="h-8 w-40 bg-slate-700/50" />
+            <Skeleton className="h-32 w-48 bg-slate-700/50 rounded-lg" />
+            <Skeleton className="h-4 w-60 bg-slate-700/50" />
+          </div>
+          <div className="flex flex-col items-center space-y-6">
+            <Skeleton className="h-8 w-40 bg-slate-700/50" />
+            <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+              {[...Array(6)].map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full bg-slate-700/50 rounded-xl" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -108,9 +119,8 @@ export default function Kiosk({ queueId }: Props) {
             {/* Connection status indicator */}
             <div className="flex items-center gap-2">
               <div
-                className={`h-2 w-2 rounded-full ${
-                  isConnected ? "bg-green-400 animate-pulse" : "bg-red-400"
-                }`}
+                className={`h-2 w-2 rounded-full ${isConnected ? "bg-green-400 animate-pulse" : "bg-red-400"
+                  }`}
               />
               <span className="text-xs text-slate-400">
                 {isConnected ? "Live" : "Disconnected"}
@@ -144,7 +154,7 @@ export default function Kiosk({ queueId }: Props) {
                 nextTokens.map((token, index) => (
                   <div
                     key={token.id}
-                      className="rounded-xl border-2 border-slate-600 bg-slate-800 p-4 text-slate-100"
+                    className="rounded-xl border-2 border-slate-600 bg-slate-800 p-4 text-slate-100"
                   >
                     <div className="text-2xl font-bold">
                       {formatToken(token.seq)}
@@ -162,11 +172,10 @@ export default function Kiosk({ queueId }: Props) {
         {/* STATUS */}
         <div className="p-6 border-t border-slate-700 text-center">
           <span
-            className={`px-4 py-2 rounded-full text-sm font-semibold ${
-              snapshot.queue.status === "ACTIVE"
-                ? "bg-green-200 text-green-900"
-                : "bg-amber-200 text-amber-900"
-            }`}
+            className={`px-4 py-2 rounded-full text-sm font-semibold ${snapshot.queue.status === "ACTIVE"
+              ? "bg-green-200 text-green-900"
+              : "bg-amber-200 text-amber-900"
+              }`}
           >
             {snapshot.queue.status === "ACTIVE" ? "Open" : "Paused"}
           </span>

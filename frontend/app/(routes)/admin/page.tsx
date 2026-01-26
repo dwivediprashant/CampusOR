@@ -9,6 +9,8 @@ import ServiceEfficiencyChart from "@/components/charts/ServiceEfficiencyChart";
 import AdminSidebar from "@/components/sidebar/AdminSidebar";
 import { fetchDashboardSummary, DashboardSummary } from "@/lib/api/admin";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import { StatSkeleton } from "@/components/skeletons/StatSkeleton";
+import { ChartSkeleton } from "@/components/skeletons/ChartSkeleton";
 
 export default function AdminPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -58,29 +60,14 @@ export default function AdminPage() {
           {/* Stats Grid */}
           {loading ? (
             <div className="bg-sky-600 p-6 sm:p-8">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-8">
                 {[...Array(5)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="bg-gray-800 rounded-xl border border-slate-200 p-6 shadow-lg relative overflow-hidden"
-                  >
-                    {/* Subtle background pattern */}
-                    <div className="absolute inset-0 opacity-5">
-                      <div
-                        className="absolute inset-0"
-                        style={{
-                          backgroundImage: `radial-gradient(circle at 25% 25%, currentColor 1px, transparent 1px)`,
-                          backgroundSize: "20px 20px",
-                        }}
-                      ></div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="relative z-10">
-                      <div className="h-4 bg-slate-200 rounded w-3/4 mb-3"></div>
-                      <div className="h-8 bg-slate-200 rounded w-1/2"></div>
-                    </div>
-                  </div>
+                  <StatSkeleton key={i} />
+                ))}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                {[...Array(4)].map((_, i) => (
+                  <ChartSkeleton key={i} />
                 ))}
               </div>
             </div>
@@ -112,7 +99,7 @@ export default function AdminPage() {
             </div>
           ) : summary ? (
             <div className="bg-sky-600 p-6 sm:p-8">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-8">
                 <StatCard
                   title="Active Tokens"
                   value={summary.activeTokens.toString()}
@@ -139,26 +126,24 @@ export default function AdminPage() {
                   color="purple"
                 />
               </div>
+
+              {/* Charts Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
+                  <QueueLoadChart />
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
+                  <WaitTimeChart />
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
+                  <TokensServedChart />
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
+                  <ServiceEfficiencyChart />
+                </div>
+              </div>
             </div>
           ) : null}
-
-          {/* Charts Grid */}
-          <div className="bg-sky-600 p-6 sm:p-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
-                <QueueLoadChart />
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
-                <WaitTimeChart />
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
-                <TokensServedChart />
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
-                <ServiceEfficiencyChart />
-              </div>
-            </div>
-          </div>
         </main>
       </div>
     </ProtectedRoute>

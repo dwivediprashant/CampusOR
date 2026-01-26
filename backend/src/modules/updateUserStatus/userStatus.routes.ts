@@ -7,6 +7,10 @@ import {
   joinQueue,
   getCurrentQueue,
   leaveQueue,
+  getNotifications,
+  markNotificationAsRead,
+  getUserState,
+  getUserStats,
 } from "./userStatus.controller.js";
 
 const userStatusRouter = Router();
@@ -21,5 +25,11 @@ userStatusRouter.get("/history", getHistory);
 userStatusRouter.post("/join-queue", joinQueue);
 userStatusRouter.get("/current-queue", getCurrentQueue);
 userStatusRouter.post("/leave-queue", leaveQueue);
+
+// Notifications and Stats
+userStatusRouter.get("/notifications", getNotifications);
+userStatusRouter.put("/notifications/:id/read", markNotificationAsRead);
+userStatusRouter.get("/state", getUserState);
+userStatusRouter.get("/stats", getUserStats);
 
 export default userStatusRouter;

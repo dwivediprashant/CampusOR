@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import QueueCard from "./QueueCard";
+import { CardSkeleton } from "../skeletons/CardSkeleton";
 import { Queue } from "./queue.types";
 import { queueService } from "../../lib/api/queue";
 
@@ -154,8 +155,12 @@ export default function QueueList() {
 
         {/* Queue Cards Grid */}
         {loading ? (
-          <div className="text-center py-12 text-slate-600">
-            <p>Loading queues...</p>
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {[...Array(6)].map((_, i) => (
+                <CardSkeleton key={i} />
+              ))}
+            </div>
           </div>
         ) : error ? (
           <div className="text-center py-12 text-red-600">

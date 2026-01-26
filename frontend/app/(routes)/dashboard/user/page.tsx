@@ -11,9 +11,10 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowRight,
-  Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { CardSkeleton } from "@/components/skeletons/CardSkeleton";
+import { Skeleton } from "@/components/skeletons/SkeletonBase";
 
 interface CurrentQueue {
   id: string;
@@ -82,10 +83,16 @@ export default function UserDashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading your dashboard...</p>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+          <p className="text-gray-600">Welcome back! Here's your queue status.</p>
+        </div>
+        <CardSkeleton />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Skeleton className="h-32 rounded-lg" />
+          <Skeleton className="h-32 rounded-lg" />
+          <Skeleton className="h-32 rounded-lg" />
         </div>
       </div>
     );
@@ -158,11 +165,10 @@ export default function UserDashboardPage() {
                   <span className="text-sm font-medium text-yellow-800">
                     {currentQueue.currentPosition === 1
                       ? "You're next! Please proceed to the service area."
-                      : `You're ${currentQueue.currentPosition - 1} ${
-                          currentQueue.currentPosition === 2
-                            ? "person"
-                            : "people"
-                        } away!`}
+                      : `You're ${currentQueue.currentPosition - 1} ${currentQueue.currentPosition === 2
+                        ? "person"
+                        : "people"
+                      } away!`}
                   </span>
                 </div>
               </div>
